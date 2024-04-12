@@ -25,6 +25,15 @@ namespace FileBrowserAPI
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "File Browser API", Version = "v1" });
             });
+            services.AddCors(options =>
+            {
+                options.AddPolicy("AllowOrigin", builder =>
+                {
+                    builder.WithOrigins("http://localhost:4200")
+                           .AllowAnyHeader()
+                           .AllowAnyMethod();
+                });
+            });
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -38,6 +47,7 @@ namespace FileBrowserAPI
                     c.SwaggerEndpoint("/swagger/v1/swagger.json", "File Browser API V1");
                 });
             }
+            app.UseCors("AllowOrigin");
 
             app.UseRouting();
 

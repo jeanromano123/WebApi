@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using System.IO;
 
 namespace FileBrowserAPI.Controllers
 {
@@ -7,69 +6,100 @@ namespace FileBrowserAPI.Controllers
     [ApiController]
     public class FileBrowserController : ControllerBase
     {
-        private readonly string _rootDirectory;
+        private readonly string _rootDirectory; // Root directory path
+        private readonly string _uploadDirectory;
 
         public FileBrowserController()
         {
-            _rootDirectory = @"C:\Users\jeanr\OneDrive\Desktop\TestProject\TempFolder"; // Replace with your root directory path
+            // Configure the root directory (make it configurable via a variable)
+            _rootDirectory = @"C:\Users"; // Example root directory path
+            _uploadDirectory = @"C:\upload";
+
+            if (!Directory.Exists(_uploadDirectory))
+            {
+                try
+                {
+                    // Create the directory if it doesn't exist
+                    Directory.CreateDirectory(_uploadDirectory);
+                    Console.WriteLine("Directory created successfully.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error creating directory: " + ex.Message);
+                }
+            }
         }
 
         [HttpGet("browse")]
-        public IActionResult Browse(string path)
+        public IActionResult Browse(string path = "")
         {
-            var fullPath = Path.Combine(_rootDirectory, path);
+            string fullPath = Path.Combine(_rootDirectory, path);
             if (!Directory.Exists(fullPath))
                 return NotFound("Directory not found.");
 
             var directories = Directory.GetDirectories(fullPath);
             var files = Directory.GetFiles(fullPath);
-
-            return Ok(new { Directories = directories, Files = files });
-        }
-
-        [HttpGet("filecontent")]
-        public IActionResult GetFileContent(string path)
-        {
-            var fullPath = Path.Combine(_rootDirectory, path);
-            Console.WriteLine("Full Path: " + fullPath); // Log the full path
-
-            if (!System.IO.File.Exists(fullPath))
+            var fileInfos = new List<object>();
+            foreach (var file in files)
             {
-                Console.WriteLine("File does not exist."); // Log if file does not exist
-                return NotFound("File not found.");
+                var fileInfo = new FileInfo(file);
+                fileInfos.Add(new { Name = Path.GetFileName(file), Size = fileInfo.Length });
             }
 
-            var content = System.IO.File.ReadAllText(fullPath);
-
-            return Ok(content);
+            return Ok(new { Directories = directories, Files = fileInfos });
         }
-        [HttpPost("upload")]
-        public async Task<IActionResult> Upload(IFormFile file)
+                
+        [HttpGet]
+        public IActionResult GetFileContent(string fileName)
         {
-            if (file == null || file.Length == 0)
-                return BadRequest("No file uploaded.");
-
-            var filePath = Path.Combine(_rootDirectory, file.FileName);
-
-            using (var stream = new FileStream(filePath, FileMode.Create))
-            {
-                await file.CopyToAsync(stream);
-            }
-
-            return Ok("File uploaded successfully.");
-        }
-
-        [HttpGet("download/{fileName}")]
-        public IActionResult Download(string fileName)
-        {
-            var filePath = Path.Combine(_rootDirectory, fileName);
-            
-            if (!System.IO.File.Exists(filePath))
+            // Check if the file exists
+            if (!System.IO.File.Exists(fileName))
                 return NotFound("File not found.");
 
-            var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+            try
+            {
+                // Read the content of the file
+                string fileContent = System.IO.File.ReadAllText(fileName);
 
-            return File(fileStream, "application/octet-stream", fileName);
+                // Return the file content as the response
+                return Ok(fileContent);
+            }
+            catch (Exception ex)
+            {
+                // Return an error response if an exception occurs
+                return StatusCode(500, $"Error: {ex.Message}");
+            }
         }
+
+        [HttpPost]
+        public async Task<IActionResult> Upload([FromForm] IFormFile file)
+        {
+            try
+            {
+                if (file == null || file.Length == 0)
+                {
+                    return BadRequest("No file uploaded.");
+                }
+
+                // Generate a unique file name
+                var fileName = Path.Combine(_uploadDirectory, file.FileName);
+
+                using (var stream = new FileStream(fileName, FileMode.Create))
+                {
+                    // Save the uploaded file to the server
+                    await file.CopyToAsync(stream);
+                }
+
+                return Ok("File uploaded successfully!");
+            }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, $"Error uploading file: {ex.Message}");
+            }
+        }
+        
     }
 }
+
+
+
